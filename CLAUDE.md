@@ -39,13 +39,31 @@ everything about it is fictional and no real money ever moves.
   otherwise ₦3,500; 7.5% VAT on the subtotal, rounded half up to the kobo with integer maths
   (`percentOfKobo`); keep `priceCart` pure and covered by tests.
 
+## Paystack checkout
+
+- Server only: `src/lib/paystack/server.ts` (imports `server-only`) talks to the Paystack REST
+  API with `fetch`. It refuses any key that isn't `sk_test_` and must never echo the key in
+  errors. `PAYSTACK_API_BASE_URL` may only point at a local mock (tests).
+- `initializeCheckout` / `verifyCheckout` (Server Actions in `src/app/checkout/actions.ts`) are
+  public endpoints: validate every input with Zod. The browser sends only product ids, variants,
+  quantities and customer fields; the server re-prices with `repriceCart`.
+- Verification accepts ONLY status `success`, currency `NGN` and an amount equal to the total
+  re-computed from the metadata cart lines (`evaluateTransaction`). Keep that logic pure and
+  covered by unit tests with mocked Paystack responses. Never call the real Paystack API in
+  tests, and never attempt a real payment.
+- References are `kc-` + 32 hex chars and are the Firestore order id (one payment, one order).
+- Customer details on checkout are fake demo data; say so in the UI.
+
 ## Firebase
 
 - Client SDK only (Auth anonymous + Firestore). Visitors are signed in anonymously **on demand**
   (checkout or orders), never on first page view.
-- Orders live at `users/{uid}/orders/{orderId}`. `firestore.rules` is deny-by-default; keep the
-  rules tests in `tests/rules` in sync with any rules change. The rules are pasted into the
-  Firebase console manually; don't deploy them from here.
+- Orders live at `users/{uid}/orders/{paystackReference}` and are written by the browser after
+  server verification (not tamper-proof; fine for this sandbox, see README "Production notes").
+- `firestore.rules` is deny-by-default and allows only the status transitions in
+  `src/lib/orders/status.ts`; keep both, and the rules tests in `tests/rules`, in sync. The
+  rules are pasted into the Firebase console manually; don't deploy them from here. When the
+  rules change, say so clearly: the owner must republish them.
 
 ## UI quality bar
 
@@ -78,3 +96,6 @@ npm test
 npm run test:rules   # needs Java for the Firestore emulator
 npm run build
 ```
+
+For checkout or orders changes, also run the browser tests (see README):
+`npm run test:e2e` and `npm run test:e2e:checkout` (emulators + local mock Paystack).
