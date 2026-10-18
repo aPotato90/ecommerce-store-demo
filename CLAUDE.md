@@ -31,7 +31,7 @@ everything about it is fictional and no real money ever moves.
 - Prices are computed on the server from the server-side catalogue (`src/data/products.ts`) via
   `priceCart` (`src/lib/shop/pricing.ts`). Never trust prices, totals or product data sent by
   the client: resolve each line by product id and re-price it.
-- Pricing rules: free shipping over $75 (subtotal > 7500 cents), otherwise $6; flat 7.5% tax on
+- Pricing rules: free shipping when the subtotal is $75 or more (>= 7500 cents), otherwise $6; flat 7.5% tax on
   the subtotal; keep `priceCart` pure and covered by tests.
 
 ## Firebase
