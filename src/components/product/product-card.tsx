@@ -17,7 +17,7 @@ export function ProductCard({
 }) {
   const Heading = headingLevel;
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow focus-within:shadow-md hover:shadow-md">
+    <article className="group relative flex w-full flex-col overflow-hidden rounded-xl border bg-card transition-shadow focus-within:shadow-md hover:shadow-md">
       <div className="relative overflow-hidden">
         <ProductImage
           product={product}

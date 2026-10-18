@@ -7,6 +7,7 @@ import { CartProvider } from "@/components/cart/cart-provider";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { InlineScript } from "@/components/theme/inline-script";
 import { ThemeSync } from "@/components/theme/theme-sync";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/lib/site";
@@ -52,12 +53,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <head>
         {/* Applies the saved/system theme before first paint to avoid a flash. */}
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <InlineScript html={themeInitScript} />
       </head>
       <body className="flex min-h-full flex-col">
         <a

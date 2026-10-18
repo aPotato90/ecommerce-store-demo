@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 import { ProductCard } from "@/components/product/product-card";
 import { Rating } from "@/components/product/rating";
 import { ProductPurchase } from "@/components/product/product-purchase";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatPrice } from "@/lib/format";
 import {
   getAllProducts,
@@ -33,7 +35,42 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProductPage({ params }: PageProps<"/shop/[slug]">) {
+// The static shell (layout + skeleton) renders instantly on navigation; the product itself
+// depends on the URL, so it resolves inside a Suspense boundary.
+export default function ProductPage({ params }: PageProps<"/shop/[slug]">) {
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <Suspense fallback={<ProductPageSkeleton />}>
+        <ProductDetails params={params} />
+      </Suspense>
+    </div>
+  );
+}
+
+function ProductPageSkeleton() {
+  return (
+    <div aria-busy="true">
+      <Skeleton className="mb-6 h-4 w-48" />
+      <div className="grid gap-8 md:grid-cols-2 lg:gap-12">
+        <Skeleton className="aspect-square w-full rounded-2xl" />
+        <div className="space-y-4">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-10 w-3/4" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-11 w-full" />
+        </div>
+      </div>
+      <span className="sr-only">Loading product…</span>
+    </div>
+  );
+}
+
+async function ProductDetails({
+  params,
+}: {
+  params: PageProps<"/shop/[slug]">["params"];
+}) {
   const { slug } = await params;
   const product = getProductBySlug(slug);
   if (!product) notFound();
@@ -42,7 +79,7 @@ export default async function ProductPage({ params }: PageProps<"/shop/[slug]">)
   const categoryLabel = CATEGORY_LABELS[product.category];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <>
       <nav aria-label="Breadcrumb" className="mb-6 text-sm">
         <ol className="flex flex-wrap items-center gap-1 text-muted-foreground">
           <li>
@@ -144,6 +181,6 @@ export default async function ProductPage({ params }: PageProps<"/shop/[slug]">)
           </ul>
         </section>
       )}
-    </div>
+    </>
   );
 }
