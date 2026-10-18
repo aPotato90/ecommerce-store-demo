@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Order } from "@/lib/firebase/orders";
 import { formatPrice } from "@/lib/format";
-import { shortReference } from "@/lib/orders/format";
+import { formatPhone, shortReference } from "@/lib/orders/format";
 import {
   canCancel,
   nextStatus,
@@ -209,7 +209,7 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
         </ol>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_340px] lg:items-start">
         <section
           aria-labelledby="order-items-heading"
           className="rounded-xl border bg-card p-5"
@@ -254,7 +254,7 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
             <dl className="space-y-2">
               <Detail label="Name" value={order.customer.fullName} />
               <Detail label="Email" value={order.customerEmail} />
-              <Detail label="Phone" value={order.customer.phone} />
+              <Detail label="Phone" value={formatPhone(order.customer.phone)} />
               <Detail label="Delivery address" value={order.customer.address} />
               <Detail label="Payment" value="Paystack (test mode)" />
               <Detail

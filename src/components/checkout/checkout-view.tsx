@@ -171,7 +171,7 @@ export function CheckoutView() {
             <Input
               type="email"
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder="e.g. you@example.com"
               className="h-10"
               {...field(
                 "email",
@@ -187,7 +187,7 @@ export function CheckoutView() {
             >
               <Input
                 autoComplete="name"
-                placeholder="Ada Demo"
+                placeholder="e.g. Ada Demo"
                 className="h-10"
                 {...field("fullName")}
               />
@@ -202,7 +202,7 @@ export function CheckoutView() {
                 type="tel"
                 autoComplete="tel"
                 inputMode="tel"
-                placeholder="0803 000 0000"
+                placeholder="e.g. 0803 000 0000"
                 className="h-10"
                 {...field("phone", "Nigerian mobile format, e.g. 0803 000 0000.")}
               />
@@ -224,7 +224,7 @@ export function CheckoutView() {
           >
             <Input
               autoComplete="address-line1"
-              placeholder="1 Example Close"
+              placeholder="e.g. 1 Example Close"
               className="h-10"
               {...field("addressLine1")}
             />
@@ -249,7 +249,7 @@ export function CheckoutView() {
             >
               <Input
                 autoComplete="address-level2"
-                placeholder="Ikeja"
+                placeholder="e.g. Ikeja"
                 className="h-10"
                 {...field("city")}
               />

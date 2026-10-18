@@ -270,7 +270,11 @@ async function functionalFlows(browser) {
       ).toBeVisible();
       await expect(drawer.getByText("Colour: Sage")).toBeVisible();
       await expect(drawer.getByText("₦37,000.00").first()).toBeVisible();
-      await drawer.getByRole("link", { name: "View cart and checkout" }).click();
+      await expect(drawer.getByRole("link", { name: "Checkout" })).toHaveAttribute(
+        "href",
+        "/checkout",
+      );
+      await drawer.getByRole("link", { name: "View cart" }).click();
       await page.waitForURL(/\/cart$/);
       await expect(drawer).toBeHidden();
     });
@@ -282,8 +286,11 @@ async function functionalFlows(browser) {
         await expect(summary.getByText("₦3,500.00")).toBeVisible();
         await expect(summary.getByText("₦2,775.00")).toBeVisible(); // 7.5% of ₦37,000
         await expect(summary.getByText("₦43,275.00")).toBeVisible();
-        await expect(summary.getByRole("button", { name: "Checkout" })).toBeDisabled();
-        await expect(summary.getByText(/Checkout coming next/)).toBeVisible();
+        await expect(summary.getByRole("link", { name: "Checkout" })).toHaveAttribute(
+          "href",
+          "/checkout",
+        );
+        await expect(summary.getByText(/Paystack in test mode/)).toBeVisible();
       },
     );
 

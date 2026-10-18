@@ -160,10 +160,10 @@ export function CallbackView() {
           twice.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button asChild>
+          <Button asChild size="lg">
             <Link href={`/orders/${current.reference}`}>View order</Link>
           </Button>
-          <Button asChild variant="outline">
+          <Button asChild size="lg" variant="outline">
             <Link href="/orders">All orders</Link>
           </Button>
         </div>
@@ -216,14 +216,18 @@ export function CallbackView() {
       )}
       <div className="flex flex-wrap gap-3">
         {RETRYABLE.has(current.code) && (
-          <Button onClick={retry}>
+          <Button size="lg" onClick={retry}>
             <RotateCcwIcon aria-hidden="true" /> Try again
           </Button>
         )}
-        <Button asChild variant={RETRYABLE.has(current.code) ? "outline" : "default"}>
+        <Button
+          asChild
+          size="lg"
+          variant={RETRYABLE.has(current.code) ? "outline" : "default"}
+        >
           <Link href="/checkout">{notTaken ? "Try again" : "Back to checkout"}</Link>
         </Button>
-        <Button asChild variant="ghost">
+        <Button asChild size="lg" variant="ghost">
           <Link href="/cart">View cart</Link>
         </Button>
       </div>
