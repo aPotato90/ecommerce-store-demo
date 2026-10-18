@@ -1,0 +1,114 @@
+rules_version = '2';
+
+// Kestrel & Co. demo store: Firestore security rules.
+//
+// Deny by default. A signed-in visitor (anonymous auth) may only touch documents under
+// users/{their uid}, and every write is validated: known fields only, typed values, length
+// and number limits. Keep in sync with src/lib/firebase/orders.ts and tests/rules/.
+//
+// These rules are NOT deployed from this repo: paste them into the Firebase console.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isString(value, minLength, maxLength) {
+      return value is string && value.size() >= minLength && value.size() <= maxLength;
+    }
+
+    function isCents(value) {
+      return value is int && value >= 0 && value <= 10000000;
+    }
+
+    // ---- users/{uid}: optional profile document ------------------------------------
+
+    function validProfile(data) {
+      return data.keys().hasOnly(['email', 'updatedAt'])
+        && data.updatedAt == request.time
+        && (!('email' in data) || data.email == null || isString(data.email, 3, 254));
+    }
+
+    // ---- users/{uid}/orders/{orderId} -----------------------------------------------
+
+    // Firestore caps one rule evaluation at 1000 expressions, and this runs once per item.
+    // It is kept lean: a regex covers a string's type, charset and length in one call
+    // (matches() on a non-string is an evaluation error, which denies), and size() == 5 plus
+    // hasOnly() means "exactly these five keys". Measured worst case is 7 items, so orders
+    // are capped at 6 lines (MAX_CART_LINES in src/lib/shop/schemas.ts).
+    function validItem(item) {
+      return item.size() == 5
+        && item.keys().hasOnly(['productId', 'name', 'unitPrice', 'quantity', 'variant'])
+        && item.productId.matches('^[A-Za-z0-9_-]{1,64}$')
+        && item.name.matches('^.{1,120}$')
+        && item.unitPrice is int && item.unitPrice >= 0 && item.unitPrice <= 10000000
+        && item.quantity is int && item.quantity >= 1 && item.quantity <= 10
+        && (item.variant == null || item.variant.matches('^[a-z0-9-]{1,64}$'));
+    }
+
+    // Rules have no loops, so each of the (at most 6) items is checked explicitly.
+    function validItems(items) {
+      let n = items.size();
+      return n >= 1 && n <= 6
+        && (n <= 0 || validItem(items[0]))
+        && (n <= 1 || validItem(items[1]))
+        && (n <= 2 || validItem(items[2]))
+        && (n <= 3 || validItem(items[3]))
+        && (n <= 4 || validItem(items[4]))
+        && (n <= 5 || validItem(items[5]));
+    }
+
+    function validAmounts(amounts) {
+      return amounts is map
+        && amounts.keys().hasOnly(['subtotal', 'shipping', 'tax', 'total'])
+        && amounts.keys().hasAll(['subtotal', 'shipping', 'tax', 'total'])
+        && isCents(amounts.subtotal)
+        && isCents(amounts.shipping)
+        && isCents(amounts.tax)
+        && isCents(amounts.total)
+        && amounts.total == amounts.subtotal + amounts.shipping + amounts.tax;
+    }
+
+    function validNewOrder(data) {
+      return data.keys().hasOnly(['items', 'amounts', 'status', 'stripeSessionId', 'createdAt', 'customerEmail'])
+        && data.keys().hasAll(['items', 'amounts', 'status', 'stripeSessionId', 'createdAt', 'customerEmail'])
+        && data.items is list
+        && validItems(data.items)
+        && validAmounts(data.amounts)
+        // New orders start as paid or processing; fulfilment states are not client-settable.
+        && data.status in ['paid', 'processing']
+        // Stripe TEST mode sessions only.
+        && isString(data.stripeSessionId, 9, 255)
+        && data.stripeSessionId.matches('^cs_test_[A-Za-z0-9_]+$')
+        && data.createdAt == request.time
+        && isString(data.customerEmail, 3, 254)
+        && data.customerEmail.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');
+    }
+
+    // The only change a customer can make is cancelling an order that hasn't shipped.
+    function validOrderUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && resource.data.status in ['paid', 'processing']
+        && request.resource.data.status == 'cancelled';
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validProfile(request.resource.data);
+      allow list, delete: if false;
+
+      match /orders/{orderId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && orderId.size() <= 64
+          && validNewOrder(request.resource.data);
+        allow update: if isOwner(uid) && validOrderUpdate();
+        allow delete: if false;
+      }
+    }
+
+    // Everything else (including any other subcollection) is denied by default.
+  }
+}
