@@ -3,11 +3,19 @@ import { describe, expect, it } from "vitest";
 import {
   FLAT_SHIPPING,
   FREE_SHIPPING_THRESHOLD,
-  percentOfCents,
+  percentOfKobo,
   priceCart,
+  VAT_RATE_BASIS_POINTS,
 } from "./pricing";
 
-describe("priceCart", () => {
+// Amounts are kobo: ₦1 = 100 kobo.
+describe("priceCart (NGN, kobo)", () => {
+  it("uses the documented constants", () => {
+    expect(FREE_SHIPPING_THRESHOLD).toBe(7_500_000); // ₦75,000
+    expect(FLAT_SHIPPING).toBe(350_000); // ₦3,500
+    expect(VAT_RATE_BASIS_POINTS).toBe(750); // 7.5%
+  });
+
   it("returns zeros for an empty cart (no shipping charged)", () => {
     expect(priceCart([])).toEqual({
       lines: [],
@@ -23,41 +31,52 @@ describe("priceCart", () => {
 
   it("computes line totals, subtotal and item count", () => {
     const result = priceCart([
-      { unitPrice: 1800, quantity: 2 },
-      { unitPrice: 2400, quantity: 1 },
+      { unitPrice: 500_000, quantity: 2 }, // ₦5,000 × 2
+      { unitPrice: 950_000, quantity: 1 }, // ₦9,500
     ]);
-    expect(result.lines.map((line) => line.lineTotal)).toEqual([3600, 2400]);
-    expect(result.subtotal).toBe(6000);
+    expect(result.lines.map((line) => line.lineTotal)).toEqual([1_000_000, 950_000]);
+    expect(result.subtotal).toBe(1_950_000);
     expect(result.itemCount).toBe(3);
   });
 
-  it("charges flat shipping below the threshold", () => {
-    const result = priceCart([{ unitPrice: 4200, quantity: 1 }]);
-    expect(result.shipping).toBe(FLAT_SHIPPING);
+  it("charges ₦3,500 shipping below the threshold", () => {
+    const result = priceCart([{ unitPrice: 1_850_000, quantity: 1 }]); // ₦18,500
+    expect(result.shipping).toBe(350_000);
     expect(result.qualifiesForFreeShipping).toBe(false);
-    expect(result.amountToFreeShipping).toBe(3300);
+    expect(result.amountToFreeShipping).toBe(5_650_000);
   });
 
-  it("ships free at exactly $75 and above", () => {
-    expect(priceCart([{ unitPrice: 7499, quantity: 1 }]).shipping).toBe(600);
-    expect(priceCart([{ unitPrice: 7500, quantity: 1 }]).shipping).toBe(0);
-    expect(priceCart([{ unitPrice: 2500, quantity: 4 }]).shipping).toBe(0);
-    expect(priceCart([{ unitPrice: 7500, quantity: 1 }]).amountToFreeShipping).toBe(0);
+  it("ships free at exactly ₦75,000 and above", () => {
+    expect(priceCart([{ unitPrice: 7_499_999, quantity: 1 }]).shipping).toBe(350_000);
+    expect(priceCart([{ unitPrice: 7_500_000, quantity: 1 }]).shipping).toBe(0);
+    expect(priceCart([{ unitPrice: 2_500_000, quantity: 4 }]).shipping).toBe(0);
+    expect(priceCart([{ unitPrice: 7_500_000, quantity: 1 }]).amountToFreeShipping).toBe(
+      0,
+    );
   });
 
-  it("applies 7.5% tax on the subtotal and adds everything up", () => {
-    const result = priceCart([{ unitPrice: 4200, quantity: 1 }]);
-    expect(result.tax).toBe(315);
-    expect(result.total).toBe(4200 + 600 + 315);
+  it("applies 7.5% VAT on the subtotal only and adds everything up", () => {
+    const result = priceCart([{ unitPrice: 1_850_000, quantity: 1 }]);
+    expect(result.tax).toBe(138_750); // ₦1,387.50
+    expect(result.total).toBe(1_850_000 + 350_000 + 138_750);
   });
 
-  it("rounds tax half-up to the nearest cent", () => {
-    // 7.5% of $0.10 = 0.75 cents -> 1 cent; of $0.06 = 0.45 cents -> 0 cents.
-    expect(priceCart([{ unitPrice: 10, quantity: 1 }]).tax).toBe(1);
-    expect(priceCart([{ unitPrice: 6, quantity: 1 }]).tax).toBe(0);
-    // 7.5% of $1.00 = 7.5 cents -> 8 cents.
-    expect(priceCart([{ unitPrice: 100, quantity: 1 }]).tax).toBe(8);
-    expect(percentOfCents(12_345, 750)).toBe(926);
+  it("rounds VAT half up to the nearest kobo", () => {
+    expect(priceCart([{ unitPrice: 10, quantity: 1 }]).tax).toBe(1); // 0.75 → 1
+    expect(priceCart([{ unitPrice: 6, quantity: 1 }]).tax).toBe(0); // 0.45 → 0
+    expect(priceCart([{ unitPrice: 100, quantity: 1 }]).tax).toBe(8); // 7.5 → 8
+    expect(priceCart([{ unitPrice: 20, quantity: 1 }]).tax).toBe(2); // 1.5 → 2
+    expect(percentOfKobo(12_345, 750)).toBe(926); // 925.875 → 926
+  });
+
+  it("stays exact for the largest possible cart", () => {
+    // 6 lines × 10 × ₦120,000 is far below Number.MAX_SAFE_INTEGER.
+    const result = priceCart(
+      Array.from({ length: 6 }, () => ({ unitPrice: 12_000_000, quantity: 10 })),
+    );
+    expect(result.subtotal).toBe(720_000_000);
+    expect(result.tax).toBe(54_000_000);
+    expect(result.total).toBe(774_000_000);
   });
 
   it("keeps extra fields on each line", () => {

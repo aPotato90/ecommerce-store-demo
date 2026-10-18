@@ -2,7 +2,7 @@ import { LockIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
-/** Stripe checkout is the next milestone; until then the button is disabled. */
+/** Paystack checkout is the next milestone; until then the button is disabled. */
 export function CheckoutButton() {
   return (
     <div className="space-y-2">
@@ -17,7 +17,7 @@ export function CheckoutButton() {
         Checkout
       </Button>
       <p id="checkout-coming-next" className="text-center text-xs text-muted-foreground">
-        Checkout coming next: secure Stripe test-mode payments.
+        Checkout coming next: Paystack test-mode payments.
       </p>
     </div>
   );

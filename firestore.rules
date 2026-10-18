@@ -19,8 +19,9 @@ service cloud.firestore {
       return value is string && value.size() >= minLength && value.size() <= maxLength;
     }
 
-    function isCents(value) {
-      return value is int && value >= 0 && value <= 10000000;
+    // Amounts are integers in kobo (₦1 = 100 kobo). Cap: ₦10,000,000.
+    function isKobo(value) {
+      return value is int && value >= 0 && value <= 1000000000;
     }
 
     // ---- users/{uid}: optional profile document ------------------------------------
@@ -43,7 +44,7 @@ service cloud.firestore {
         && item.keys().hasOnly(['productId', 'name', 'unitPrice', 'quantity', 'variant'])
         && item.productId.matches('^[A-Za-z0-9_-]{1,64}$')
         && item.name.matches('^.{1,120}$')
-        && item.unitPrice is int && item.unitPrice >= 0 && item.unitPrice <= 10000000
+        && item.unitPrice is int && item.unitPrice >= 0 && item.unitPrice <= 100000000
         && item.quantity is int && item.quantity >= 1 && item.quantity <= 10
         && (item.variant == null || item.variant.matches('^[a-z0-9-]{1,64}$'));
     }
@@ -64,24 +65,23 @@ service cloud.firestore {
       return amounts is map
         && amounts.keys().hasOnly(['subtotal', 'shipping', 'tax', 'total'])
         && amounts.keys().hasAll(['subtotal', 'shipping', 'tax', 'total'])
-        && isCents(amounts.subtotal)
-        && isCents(amounts.shipping)
-        && isCents(amounts.tax)
-        && isCents(amounts.total)
+        && isKobo(amounts.subtotal)
+        && isKobo(amounts.shipping)
+        && isKobo(amounts.tax)
+        && isKobo(amounts.total)
         && amounts.total == amounts.subtotal + amounts.shipping + amounts.tax;
     }
 
     function validNewOrder(data) {
-      return data.keys().hasOnly(['items', 'amounts', 'status', 'stripeSessionId', 'createdAt', 'customerEmail'])
-        && data.keys().hasAll(['items', 'amounts', 'status', 'stripeSessionId', 'createdAt', 'customerEmail'])
+      return data.keys().hasOnly(['items', 'amounts', 'status', 'paystackReference', 'createdAt', 'customerEmail'])
+        && data.keys().hasAll(['items', 'amounts', 'status', 'paystackReference', 'createdAt', 'customerEmail'])
         && data.items is list
         && validItems(data.items)
         && validAmounts(data.amounts)
         // New orders start as paid or processing; fulfilment states are not client-settable.
         && data.status in ['paid', 'processing']
-        // Stripe TEST mode sessions only.
-        && isString(data.stripeSessionId, 9, 255)
-        && data.stripeSessionId.matches('^cs_test_[A-Za-z0-9_]+$')
+        // Paystack reference charset: -, ., = and alphanumerics.
+        && data.paystackReference.matches('^[A-Za-z0-9.=-]{1,100}$')
         && data.createdAt == request.time
         && isString(data.customerEmail, 3, 254)
         && data.customerEmail.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');

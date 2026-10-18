@@ -17,26 +17,31 @@ describe("parseShopParams", () => {
   });
 
   it("parses valid values", () => {
-    expect(parse("q=mug&category=kitchen&min=10&max=60&sort=price-asc&page=2")).toEqual({
+    expect(
+      parse("q=mug&category=kitchen&min=10000&max=60000&sort=price-asc&page=2"),
+    ).toEqual({
       q: "mug",
       category: "kitchen",
-      minPrice: 10,
-      maxPrice: 60,
+      minPrice: 10_000,
+      maxPrice: 60_000,
       sort: "price-asc",
       page: 2,
     });
   });
 
   it("ignores or clamps invalid values", () => {
-    expect(parse("category=toys&sort=random&min=-5&max=9999&page=abc")).toEqual({
+    expect(parse("category=toys&sort=random&min=-5&max=9999999&page=abc")).toEqual({
       ...DEFAULT_FILTERS,
-      maxPrice: 150,
+      maxPrice: 120_000,
     });
-    expect(parse("min=80&max=20")).toMatchObject({ minPrice: 20, maxPrice: 80 });
+    expect(parse("min=80000&max=20000")).toMatchObject({
+      minPrice: 20_000,
+      maxPrice: 80_000,
+    });
   });
 
   it("round-trips through toShopSearchParams", () => {
-    const filters = parse("q=lamp&category=home&max=100&sort=rating");
+    const filters = parse("q=lamp&category=home&max=100000&sort=rating");
     expect(parseShopParams(toShopSearchParams(filters))).toEqual(filters);
     expect(toShopSearchParams(DEFAULT_FILTERS).toString()).toBe("");
   });
@@ -56,14 +61,14 @@ describe("filterProducts", () => {
     expect(names).toEqual(["Slow Morning Pour-Over Set"]);
   });
 
-  it("filters by price range in dollars", () => {
+  it("filters by price range in naira (prices are kobo)", () => {
     const result = filterProducts(products, {
       ...DEFAULT_FILTERS,
-      minPrice: 40,
-      maxPrice: 60,
+      minPrice: 20_000,
+      maxPrice: 40_000,
     });
     expect(result.length).toBeGreaterThan(0);
-    expect(result.every((p) => p.price >= 4000 && p.price <= 6000)).toBe(true);
+    expect(result.every((p) => p.price >= 2_000_000 && p.price <= 4_000_000)).toBe(true);
   });
 
   it("sorts by price and rating", () => {

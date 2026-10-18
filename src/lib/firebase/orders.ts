@@ -21,7 +21,11 @@ export const ORDER_LIMITS = {
   maxNameLength: 120,
   maxIdLength: 64,
   maxEmailLength: 254,
-  maxAmountCents: 10_000_000,
+  /** ₦1,000,000 per unit, in kobo. */
+  maxUnitPriceKobo: 100_000_000,
+  /** ₦10,000,000 per order amount, in kobo. */
+  maxAmountKobo: 1_000_000_000,
+  maxReferenceLength: 100,
 } as const;
 
 export const ORDER_STATUSES = [
@@ -33,19 +37,19 @@ export const ORDER_STATUSES = [
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
-const cents = z.number().int().min(0).max(ORDER_LIMITS.maxAmountCents);
+const kobo = z.number().int().min(0).max(ORDER_LIMITS.maxAmountKobo);
 
 export const orderItemSchema = z.object({
   productId: z.string().min(1).max(ORDER_LIMITS.maxIdLength),
   name: z.string().min(1).max(ORDER_LIMITS.maxNameLength),
-  /** Unit price in cents, taken from the server-side catalogue at checkout. */
-  unitPrice: cents,
+  /** Unit price in kobo, taken from the server-side catalogue at checkout. */
+  unitPrice: z.number().int().min(0).max(ORDER_LIMITS.maxUnitPriceKobo),
   quantity: z.number().int().min(1).max(MAX_QUANTITY_PER_LINE),
   variant: z.string().min(1).max(ORDER_LIMITS.maxIdLength).nullable(),
 });
 
 export const orderAmountsSchema = z
-  .object({ subtotal: cents, shipping: cents, tax: cents, total: cents })
+  .object({ subtotal: kobo, shipping: kobo, tax: kobo, total: kobo })
   .refine((a) => a.total === a.subtotal + a.shipping + a.tax, "total must add up");
 
 /** Shape of a document at users/{uid}/orders/{orderId}. */
@@ -53,10 +57,11 @@ export const orderSchema = z.object({
   items: z.array(orderItemSchema).min(1).max(ORDER_LIMITS.maxItems),
   amounts: orderAmountsSchema,
   status: z.enum(ORDER_STATUSES),
-  stripeSessionId: z
+  /** Paystack transaction reference (Paystack allows only -, ., = and alphanumerics). */
+  paystackReference: z
     .string()
-    .regex(/^cs_test_[A-Za-z0-9_]+$/)
-    .max(255),
+    .regex(/^[A-Za-z0-9.=-]+$/)
+    .max(ORDER_LIMITS.maxReferenceLength),
   createdAt: z.instanceof(Timestamp),
   customerEmail: z.email().max(ORDER_LIMITS.maxEmailLength),
 });

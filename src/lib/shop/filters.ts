@@ -9,14 +9,15 @@ export const SORT_OPTIONS = [
 export type SortOption = (typeof SORT_OPTIONS)[number]["value"];
 
 export const PAGE_SIZE = 8;
-/** Bounds of the price slider, in whole dollars. */
+/** Bounds of the price slider, in whole naira (URL params use naira, prices use kobo). */
 export const PRICE_FLOOR = 0;
-export const PRICE_CEILING = 150;
+export const PRICE_CEILING = 120_000;
+export const PRICE_STEP = 5_000;
 
 export type ShopFilters = {
   q: string;
   category: Category | null;
-  /** Whole dollars. */
+  /** Whole naira. */
   minPrice: number;
   maxPrice: number;
   sort: SortOption;

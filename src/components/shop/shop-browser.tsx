@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { products } from "@/data/products";
-import { formatPrice } from "@/lib/format";
 import {
   DEFAULT_FILTERS,
   filterProducts,
@@ -30,6 +29,7 @@ import {
   parseShopParams,
   PRICE_CEILING,
   PRICE_FLOOR,
+  PRICE_STEP,
   SORT_OPTIONS,
   toShopSearchParams,
   type ShopFilters,
@@ -40,10 +40,16 @@ import { cn } from "@/lib/utils";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-function priceLabel(dollars: number) {
-  return dollars >= PRICE_CEILING
-    ? `${formatPrice(dollars * 100)}+`
-    : formatPrice(dollars * 100);
+const nairaFormat = new Intl.NumberFormat("en-NG", {
+  style: "currency",
+  currency: "NGN",
+  maximumFractionDigits: 0,
+});
+const formatNaira = (naira: number) => nairaFormat.format(naira);
+
+function priceLabel(naira: number) {
+  const label = formatNaira(naira);
+  return naira >= PRICE_CEILING ? `${label}+` : label;
 }
 
 export function ShopBrowser() {
@@ -230,7 +236,7 @@ export function ShopBrowser() {
             <Slider
               min={PRICE_FLOOR}
               max={PRICE_CEILING}
-              step={5}
+              step={PRICE_STEP}
               minStepsBetweenThumbs={1}
               value={price}
               onValueChange={(value) => setPrice([value[0], value[1]])}

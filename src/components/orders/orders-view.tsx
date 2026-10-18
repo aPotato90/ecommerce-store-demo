@@ -19,7 +19,7 @@ const STATUS_LABELS: Record<Order["status"], string> = {
   cancelled: "Cancelled",
 };
 
-const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
+const dateFormat = new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" });
 
 type LoadState =
   | { kind: "loading" }
@@ -87,7 +87,7 @@ export function OrdersView() {
         <div className="space-y-1">
           <h2 className="text-xl font-semibold">No orders yet</h2>
           <p className="text-muted-foreground">
-            Orders you place with a Stripe test card will appear here.
+            Orders you pay for with a Paystack test card will appear here.
           </p>
         </div>
         <Button asChild>

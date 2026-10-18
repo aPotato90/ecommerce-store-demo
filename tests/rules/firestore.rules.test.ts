@@ -49,21 +49,22 @@ function validOrder(overrides: Record<string, unknown> = {}) {
       {
         productId: "prd_aster_vase",
         name: "Aster Ceramic Vase",
-        unitPrice: 4200,
+        unitPrice: 1_850_000,
         quantity: 2,
         variant: "sage",
       },
       {
         productId: "prd_pourover_set",
         name: "Slow Morning Pour-Over Set",
-        unitPrice: 5600,
+        unitPrice: 3_200_000,
         quantity: 1,
         variant: null,
       },
     ],
-    amounts: { subtotal: 14000, shipping: 0, tax: 1050, total: 15050 },
+    // Amounts in kobo: ₦69,000 subtotal + ₦3,500 shipping + 7.5% VAT.
+    amounts: { subtotal: 6_900_000, shipping: 350_000, tax: 517_500, total: 7_767_500 },
     status: "paid",
-    stripeSessionId: "cs_test_a1B2c3D4e5",
+    paystackReference: "kc-0123456789abcdef0123456789abcdef",
     createdAt: serverTimestamp(),
     customerEmail: "jamie@example.com",
     ...overrides,
@@ -149,8 +150,10 @@ describe("orders: create validation", () => {
     ["an unknown top-level field", { discount: 100 }],
     ["a fulfilment status", { status: "shipped" }],
     ["an invalid status", { status: "refunded" }],
-    ["a live Stripe session", { stripeSessionId: "cs_live_a1B2c3" }],
-    ["a malformed session id", { stripeSessionId: "cs_test_<script>" }],
+    ["a reference with forbidden characters", { paystackReference: "kc_<script>" }],
+    ["an over-long reference", { paystackReference: "k".repeat(101) }],
+    ["a numeric reference", { paystackReference: 12345 }],
+    ["a leftover Stripe field", { stripeSessionId: "cs_test_a1B2c3" }],
     ["a client timestamp", { createdAt: Timestamp.fromDate(new Date("2020-01-01")) }],
     ["an invalid email", { customerEmail: "not-an-email" }],
     ["a too-long email", { customerEmail: `${"a".repeat(250)}@example.com` }],
@@ -165,10 +168,13 @@ describe("orders: create validation", () => {
       { amounts: { subtotal: -100, shipping: 0, tax: 0, total: -100 } },
     ],
     [
-      "fractional cents",
+      "fractional kobo",
       { amounts: { subtotal: 10.5, shipping: 0, tax: 0, total: 10.5 } },
     ],
-    ["huge amounts", { amounts: { subtotal: 2e7, shipping: 0, tax: 0, total: 2e7 } }],
+    [
+      "amounts over the ₦10,000,000 cap",
+      { amounts: { subtotal: 1_000_000_001, shipping: 0, tax: 0, total: 1_000_000_001 } },
+    ],
     [
       "an extra amount field",
       { amounts: { subtotal: 1, shipping: 0, tax: 0, total: 1, x: 0 } },
@@ -184,6 +190,7 @@ describe("orders: create validation", () => {
     ["quantity 11", { ...item(1), quantity: 11 }],
     ["a string price", { ...item(1), unitPrice: "100" }],
     ["a negative price", { ...item(1), unitPrice: -1 }],
+    ["a unit price over ₦1,000,000", { ...item(1), unitPrice: 100_000_001 }],
     ["a very long name", { ...item(1), name: "x".repeat(121) }],
     ["an empty product id", { ...item(1), productId: "" }],
     ["a numeric variant", { ...item(1), variant: 3 }],
@@ -206,7 +213,7 @@ describe("orders: create validation", () => {
     const items = Array.from({ length: 6 }, (_, i) => ({
       productId: `prd_${"x".repeat(58)}_${i}`,
       name: "n".repeat(120),
-      unitPrice: 100_000,
+      unitPrice: 100_000_000,
       quantity: 10,
       variant: "v".repeat(64),
     }));
@@ -214,7 +221,9 @@ describe("orders: create validation", () => {
       create(
         validOrder({
           items,
-          amounts: { subtotal: 6_000_000, shipping: 0, tax: 0, total: 6_000_000 },
+          // 6 × 10 × ₦1,000,000 (the per-unit cap) = ₦60,000,000 would exceed the order cap,
+          // so the amounts here sit at the cap; the item values are what stress the rules.
+          amounts: { subtotal: 1_000_000_000, shipping: 0, tax: 0, total: 1_000_000_000 },
         }),
       ),
     );

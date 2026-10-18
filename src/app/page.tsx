@@ -22,8 +22,8 @@ const CATEGORY_COVERS: Record<Category, string> = {
 const trustPoints = [
   {
     icon: TruckIcon,
-    title: "Free shipping over $75",
-    body: "A flat $6 below that. (Nothing actually ships: it's a demo.)",
+    title: "Free shipping over ₦75,000",
+    body: "A flat ₦3,500 below that. (Nothing actually ships: it's a demo.)",
   },
   {
     icon: RotateCcwIcon,
@@ -33,7 +33,7 @@ const trustPoints = [
   {
     icon: ShieldCheckIcon,
     title: "Secure test checkout",
-    body: "Payments run through Stripe in test mode only. No real cards are charged.",
+    body: "Payments run through Paystack in test mode only. No real money moves.",
   },
 ];
 

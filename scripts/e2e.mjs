@@ -101,7 +101,7 @@ async function auditMatrix(browser) {
             );
             if (isDark !== (theme === "dark")) throw new Error(`Expected ${theme} theme`);
             await expect(
-              page.getByText("Demo store. No real orders. Stripe test mode."),
+              page.getByText("Demo store. No real orders. Paystack test mode."),
             ).toBeVisible();
             await expect(page.getByText(/Kestrel & Co\. is fictional/)).toBeVisible();
             await noHorizontalOverflow(page);
@@ -166,14 +166,16 @@ async function functionalFlows(browser) {
       const prices = await visible(
         page.getByRole("list", { name: "Products" }).locator("article"),
       ).evaluateAll((cards) =>
-        cards.map((c) => Number(c.textContent.match(/\$(\d+\.\d\d)/)[1])),
+        cards.map((c) =>
+          Number(c.textContent.match(/₦([\d,]+\.\d\d)/)[1].replaceAll(",", "")),
+        ),
       );
       if (prices.join() !== [...prices].sort((a, b) => a - b).join())
         throw new Error(`Not sorted: ${prices}`);
     });
 
     await check("deep link restores filters from the URL", async () => {
-      await page.goto(`${BASE_URL}/shop?category=desk&sort=price-desc&max=100`, {
+      await page.goto(`${BASE_URL}/shop?category=desk&sort=price-desc&max=100000`, {
         waitUntil: "networkidle",
       });
       await expect(page.getByRole("status").filter({ hasText: "in Desk" })).toBeVisible();
@@ -185,7 +187,7 @@ async function functionalFlows(browser) {
       );
       await expect(page.getByRole("slider", { name: "Maximum price" })).toHaveAttribute(
         "aria-valuenow",
-        "100",
+        "100000",
       );
     });
 
@@ -267,19 +269,19 @@ async function functionalFlows(browser) {
         drawer.getByRole("link", { name: "Aster Ceramic Vase" }),
       ).toBeVisible();
       await expect(drawer.getByText("Colour: Sage")).toBeVisible();
-      await expect(drawer.getByText("$84.00").first()).toBeVisible();
+      await expect(drawer.getByText("₦37,000.00").first()).toBeVisible();
       await drawer.getByRole("link", { name: "View cart and checkout" }).click();
       await page.waitForURL(/\/cart$/);
       await expect(drawer).toBeHidden();
     });
 
     await check(
-      "/cart totals use priceCart (free shipping over $75, 7.5% tax)",
+      "/cart totals use priceCart (₦3,500 shipping under ₦75,000, 7.5% VAT)",
       async () => {
         const summary = page.getByRole("region", { name: "Order summary" });
-        await expect(summary.getByText("Free", { exact: true })).toBeVisible();
-        await expect(summary.getByText("$6.30")).toBeVisible(); // 7.5% of $84.00
-        await expect(summary.getByText("$90.30")).toBeVisible();
+        await expect(summary.getByText("₦3,500.00")).toBeVisible();
+        await expect(summary.getByText("₦2,775.00")).toBeVisible(); // 7.5% of ₦37,000
+        await expect(summary.getByText("₦43,275.00")).toBeVisible();
         await expect(summary.getByRole("button", { name: "Checkout" })).toBeDisabled();
         await expect(summary.getByText(/Checkout coming next/)).toBeVisible();
       },
@@ -290,7 +292,9 @@ async function functionalFlows(browser) {
         .getByRole("button", { name: "Decrease quantity of Aster Ceramic Vase" })
         .click();
       await expect.poll(() => cartCount(page)).toBe(1);
-      await expect(page.getByText("Add $33.00 more for free shipping.")).toBeVisible();
+      await expect(
+        page.getByText("Add ₦56,500.00 more for free shipping."),
+      ).toBeVisible();
     });
 
     await check("remove shows an undo toast that restores the line", async () => {

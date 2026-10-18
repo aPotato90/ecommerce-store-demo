@@ -3,10 +3,10 @@
 **Kestrel & Co.** is a portfolio demo of a modern online shop built by
 [Emmanuel Kelvin](https://example.com). It's meant to look and behave like a real store, but the
 brand, the products and the reviews are all made up, and payments run through
-**Stripe test mode only**.
+**Paystack test mode only**. Prices are in Nigerian naira (NGN).
 
 > **Demo disclaimer.** This is not a real business. Nothing is for sale, nothing ships and no
-> real payment is ever taken. Use only Stripe test cards. Contact addresses use `example.com`.
+> real payment is ever taken. Use only Paystack test cards. Contact addresses use `example.com`.
 
 <!-- Screenshot placeholder: add docs/screenshot.png and uncomment the line below. -->
 <!-- ![Kestrel & Co. storefront](docs/screenshot.png) -->
@@ -24,8 +24,9 @@ _Screenshot coming soon._
   with stock limits, a free-shipping progress bar, undo after removing an item and
   screen-reader announcements.
 - **Pricing on the server's terms.** `priceCart` is a pure, tested function: line totals, free
-  shipping over $75 (otherwise a flat $6) and a flat 7.5% tax, all in integer cents. The cart only
-  stores product ids and quantities. Prices always come from the catalogue.
+  shipping from ₦75,000 (otherwise a flat ₦3,500) and 7.5% VAT, all in integer **kobo**
+  (₦1 = 100 kobo). VAT is rounded half up to the nearest kobo using integer maths only. The
+  cart only stores product ids and quantities. Prices always come from the catalogue.
 - **Firebase.** Anonymous auth only starts when a visitor needs it (orders now, checkout next),
   never on first page view. Orders live at `users/{uid}/orders/{orderId}`, protected by
   deny-by-default security rules with field validation. The rules are covered by emulator tests.
@@ -35,7 +36,7 @@ _Screenshot coming soon._
   themes with no flash on load, `prefers-reduced-motion` support and a mobile-first layout
   checked at 375, 768 and 1280 px. Axe-core audits are part of the browser QA script.
 
-Stripe Checkout is the next milestone. For now the Checkout button on `/cart` is disabled.
+Paystack checkout is the next milestone. For now the Checkout button on `/cart` is disabled.
 
 ## Tech stack
 
@@ -44,7 +45,7 @@ Stripe Checkout is the next milestone. For now the Checkout button on `/cart` is
 | Framework   | Next.js 16 (App Router, Cache Components), React 19, TypeScript strict |
 | UI          | Tailwind CSS v4, shadcn/ui (Radix), lucide-react, sonner               |
 | Data & auth | Firebase client SDK: Auth (anonymous) + Firestore                      |
-| Payments    | Stripe server SDK, **test mode only** (checkout coming next)           |
+| Payments    | Paystack REST API from the server, **test mode only**, NGN (kobo)      |
 | Validation  | Zod, React Hook Form                                                   |
 | Testing     | Vitest, Firebase rules-unit-testing + emulator, Playwright + axe-core  |
 | Tooling     | ESLint, Prettier (with the Tailwind plugin), npm                       |
@@ -63,7 +64,7 @@ npm run dev                  # http://localhost:3000
 ```
 
 The storefront and cart work without any keys. Firebase is only needed for guest sessions and
-order history. Stripe is only needed for checkout.
+order history. Paystack is only needed for checkout.
 
 ### 1. Create a Firebase project
 
@@ -78,28 +79,30 @@ order history. Stripe is only needed for checkout.
    the `NEXT_PUBLIC_FIREBASE_*` variables in `.env.local`.
 6. **Authentication → Settings → Authorized domains**: add your deployment's domain.
 
-### 2. Get Stripe test keys
+### 2. Get Paystack test keys
 
-1. Create a free [Stripe](https://dashboard.stripe.com/register) account. You don't need to
-   activate payments.
+1. Create a free [Paystack](https://dashboard.paystack.com/#/signup) account. You don't need to
+   activate your business for test mode.
 2. Make sure the dashboard is in **Test mode**.
-3. **Developers → API keys**: copy the **Secret key** that starts with `sk_test_` into
-   `STRIPE_SECRET_KEY` in `.env.local`. Never use an `sk_live_` key with this project.
+3. **Settings → API Keys & Webhooks**: copy the **Test Secret Key** (`sk_test_…`) into
+   `PAYSTACK_SECRET_KEY` and the **Test Public Key** (`pk_test_…`) into
+   `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` in `.env.local`. Never use live keys with this project.
 
 ### Environment variables
 
-| Variable                                   | Visibility      | Purpose                                                 |
-| ------------------------------------------ | --------------- | ------------------------------------------------------- |
-| `NEXT_PUBLIC_FIREBASE_API_KEY`             | public          | Firebase web config                                     |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`         | public          | Firebase web config                                     |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID`          | public          | Firebase web config                                     |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`      | public          | Firebase web config                                     |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | public          | Firebase web config                                     |
-| `NEXT_PUBLIC_FIREBASE_APP_ID`              | public          | Firebase web config                                     |
-| `NEXT_PUBLIC_FIREBASE_USE_EMULATORS`       | public          | `true` to use the local Auth + Firestore emulators      |
-| `NEXT_PUBLIC_SITE_URL`                     | public          | Canonical site URL (metadata, future Stripe redirects)  |
-| `NEXT_PUBLIC_PORTFOLIO_URL`                | public          | Portfolio link in the footer                            |
-| `STRIPE_SECRET_KEY`                        | **server only** | Stripe test secret key. Never expose, log or commit it. |
+| Variable                                   | Visibility      | Purpose                                                |
+| ------------------------------------------ | --------------- | ------------------------------------------------------ |
+| `NEXT_PUBLIC_FIREBASE_API_KEY`             | public          | Firebase web config                                    |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`         | public          | Firebase web config                                    |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID`          | public          | Firebase web config                                    |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`      | public          | Firebase web config                                    |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | public          | Firebase web config                                    |
+| `NEXT_PUBLIC_FIREBASE_APP_ID`              | public          | Firebase web config                                    |
+| `NEXT_PUBLIC_FIREBASE_USE_EMULATORS`       | public          | `true` to use the local Auth + Firestore emulators     |
+| `NEXT_PUBLIC_SITE_URL`                     | public          | Site URL (metadata and the Paystack callback URL)      |
+| `NEXT_PUBLIC_PORTFOLIO_URL`                | public          | Portfolio link in the footer                           |
+| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`          | public          | Paystack test public key (`pk_test_…`)                 |
+| `PAYSTACK_SECRET_KEY`                      | **server only** | Paystack test secret key. Never expose, log or commit. |
 
 Firebase web config values are not secrets: they identify the project, and access is enforced
 by `firestore.rules`. Only `.env.example` is committed. Every other `.env*` file is git-ignored.
@@ -115,16 +118,9 @@ NEXT_PUBLIC_FIREBASE_USE_EMULATORS=true npm run dev # in a second terminal
 
 ## Test payments
 
-When checkout ships, use Stripe's test card:
-
-| Field       | Value                       |
-| ----------- | --------------------------- |
-| Card number | `4242 4242 4242 4242`       |
-| Expiry      | any future date, e.g. 12/34 |
-| CVC         | any 3 digits                |
-| ZIP         | any                         |
-
-Real cards will not work. The store runs in Stripe test mode only.
+Checkout uses Paystack in test mode, so only Paystack test cards work and no real money moves.
+Get the current test card numbers from Paystack's official
+[Test Payments](https://paystack.com/docs/payments/test-payments/) page.
 
 ## Scripts
 
@@ -184,4 +180,4 @@ scripts/e2e.mjs        Playwright + axe-core browser QA
 
 ---
 
-Demo store. No real orders. Stripe test mode. Built by Emmanuel Kelvin.
+Demo store. No real orders. Paystack test mode. Built by Emmanuel Kelvin.

@@ -65,7 +65,7 @@ export type Product = {
   tagline: string;
   description: string;
   details: string[];
-  /** Unit price in cents (USD). */
+  /** Unit price in kobo (NGN minor unit, ₦1 = 100 kobo). */
   price: number;
   category: Category;
   tags: string[];
