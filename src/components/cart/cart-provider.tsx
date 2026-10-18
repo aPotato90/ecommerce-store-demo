@@ -39,6 +39,8 @@ type CartContextValue = {
   addItem: (product: Product, variantId: string | null, quantity: number) => void;
   updateQuantity: (key: string, quantity: number) => void;
   removeItem: (key: string) => void;
+  /** Empties the cart, e.g. after a verified payment. */
+  clearCart: () => void;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -171,6 +173,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const clearCart = useCallback(() => setCartItems(() => []), []);
+
   const value = useMemo<CartContextValue>(
     () => ({
       lines,
@@ -181,8 +185,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       addItem,
       updateQuantity,
       removeItem,
+      clearCart,
     }),
-    [lines, totals, hydrated, isOpen, addItem, updateQuantity, removeItem],
+    [lines, totals, hydrated, isOpen, addItem, updateQuantity, removeItem, clearCart],
   );
 
   return (

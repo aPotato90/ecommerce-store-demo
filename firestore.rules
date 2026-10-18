@@ -72,26 +72,50 @@ service cloud.firestore {
         && amounts.total == amounts.subtotal + amounts.shipping + amounts.tax;
     }
 
-    function validNewOrder(data) {
-      return data.keys().hasOnly(['items', 'amounts', 'status', 'paystackReference', 'createdAt', 'customerEmail'])
-        && data.keys().hasAll(['items', 'amounts', 'status', 'paystackReference', 'createdAt', 'customerEmail'])
+    // Delivery details captured at checkout (fake demo data). Exactly three short strings.
+    function validCustomer(customer) {
+      return customer is map
+        && customer.size() == 3
+        && customer.keys().hasOnly(['fullName', 'phone', 'address'])
+        && customer.fullName.matches('^.{1,80}$')
+        && customer.phone.matches('^[+]?[0-9]{10,14}$')
+        && customer.address.matches('^.{1,300}$');
+    }
+
+    // Orders are written by the visitor's browser after the server has verified the Paystack
+    // payment. The document id IS the Paystack reference, so one payment = one order: a second
+    // write to the same id is an update, which these rules only allow for status changes.
+    function validNewOrder(orderId, data) {
+      return data.size() == 8
+        && data.keys().hasOnly(['items', 'amounts', 'currency', 'status', 'paystackReference', 'createdAt', 'customerEmail', 'customer'])
+        && data.paystackReference == orderId
+        // Server-generated reference: "kc-" + 32 hex chars (Paystack charset is -, ., = and alphanumerics).
+        && orderId.matches('^kc-[0-9a-f]{32}$')
         && data.items is list
         && validItems(data.items)
         && validAmounts(data.amounts)
-        // New orders start as paid or processing; fulfilment states are not client-settable.
-        && data.status in ['paid', 'processing']
-        // Paystack reference charset: -, ., = and alphanumerics.
-        && data.paystackReference.matches('^[A-Za-z0-9.=-]{1,100}$')
+        && data.currency == 'NGN'
+        // A verified payment always starts as "paid"; later states come from updates.
+        && data.status == 'paid'
         && data.createdAt == request.time
         && isString(data.customerEmail, 3, 254)
-        && data.customerEmail.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');
+        && data.customerEmail.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+        && validCustomer(data.customer);
     }
 
-    // The only change a customer can make is cancelling an order that hasn't shipped.
+    // Allowed status changes, and nothing else may change:
+    //   cancel:  paid | processing -> cancelled
+    //   advance: paid -> processing -> shipped -> delivered   (demo-only lifecycle button)
     function validOrderUpdate() {
+      let transitions = {
+        'paid': ['processing', 'cancelled'],
+        'processing': ['shipped', 'cancelled'],
+        'shipped': ['delivered']
+      };
+      let from = resource.data.status;
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-        && resource.data.status in ['paid', 'processing']
-        && request.resource.data.status == 'cancelled';
+        && from in transitions
+        && request.resource.data.status in transitions[from];
     }
 
     match /users/{uid} {
@@ -101,9 +125,7 @@ service cloud.firestore {
 
       match /orders/{orderId} {
         allow read: if isOwner(uid);
-        allow create: if isOwner(uid)
-          && orderId.size() <= 64
-          && validNewOrder(request.resource.data);
+        allow create: if isOwner(uid) && validNewOrder(orderId, request.resource.data);
         allow update: if isOwner(uid) && validOrderUpdate();
         allow delete: if false;
       }

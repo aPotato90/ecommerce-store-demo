@@ -23,6 +23,10 @@ import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 const PROJECT_ID = "demo-kestrel";
 const ALICE = "alice";
 const BOB = "bob";
+/** Orders are stored under their Paystack reference: "kc-" + 32 hex chars. */
+const REF = "kc-0123456789abcdef0123456789abcdef";
+const REF2 = "kc-fedcba9876543210fedcba9876543210";
+const STATUSES = ["paid", "processing", "shipped", "delivered", "cancelled"] as const;
 
 let env: RulesTestEnvironment;
 
@@ -43,7 +47,7 @@ afterAll(async () => {
   await env?.cleanup();
 });
 
-function validOrder(overrides: Record<string, unknown> = {}) {
+function validOrder(overrides: Record<string, unknown> = {}, reference = REF) {
   return {
     items: [
       {
@@ -63,10 +67,16 @@ function validOrder(overrides: Record<string, unknown> = {}) {
     ],
     // Amounts in kobo: ₦69,000 subtotal + ₦3,500 shipping + 7.5% VAT.
     amounts: { subtotal: 6_900_000, shipping: 350_000, tax: 517_500, total: 7_767_500 },
+    currency: "NGN",
     status: "paid",
-    paystackReference: "kc-0123456789abcdef0123456789abcdef",
+    paystackReference: reference,
     createdAt: serverTimestamp(),
     customerEmail: "jamie@example.com",
+    customer: {
+      fullName: "Jamie Demo",
+      phone: "08030000000",
+      address: "1 Example Close, Ikeja, Lagos",
+    },
     ...overrides,
   };
 }
@@ -85,10 +95,12 @@ function db(uid: string | null) {
     : env.unauthenticatedContext().firestore();
 }
 
-async function seedOrder(uid: string, id: string, data: Record<string, unknown> = {}) {
+const orderPath = (uid: string, id = REF) => `users/${uid}/orders/${id}`;
+
+async function seedOrder(uid: string, id = REF, data: Record<string, unknown> = {}) {
   await env.withSecurityRulesDisabled(async (context) => {
-    await setDoc(doc(context.firestore(), `users/${uid}/orders/${id}`), {
-      ...validOrder({ createdAt: Timestamp.now() }),
+    await setDoc(doc(context.firestore(), orderPath(uid, id)), {
+      ...validOrder({ createdAt: Timestamp.now() }, id),
       ...data,
     });
   });
@@ -102,9 +114,11 @@ describe("default deny", () => {
   });
 
   it("denies unauthenticated access to orders", async () => {
-    await seedOrder(ALICE, "o1");
-    await assertFails(getDoc(doc(db(null), `users/${ALICE}/orders/o1`)));
-    await assertFails(setDoc(doc(db(null), `users/${ALICE}/orders/o2`), validOrder()));
+    await seedOrder(ALICE);
+    await assertFails(getDoc(doc(db(null), orderPath(ALICE))));
+    await assertFails(
+      setDoc(doc(db(null), orderPath(ALICE, REF2)), validOrder({}, REF2)),
+    );
   });
 
   it("denies unknown subcollections even for the owner", async () => {
@@ -116,44 +130,64 @@ describe("default deny", () => {
 describe("orders: ownership", () => {
   it("lets the owner create, read and list their orders", async () => {
     const alice = db(ALICE);
-    await assertSucceeds(setDoc(doc(alice, `users/${ALICE}/orders/o1`), validOrder()));
-    await assertSucceeds(getDoc(doc(alice, `users/${ALICE}/orders/o1`)));
+    await assertSucceeds(setDoc(doc(alice, orderPath(ALICE)), validOrder()));
+    await assertSucceeds(getDoc(doc(alice, orderPath(ALICE))));
     await assertSucceeds(getDocs(collection(alice, `users/${ALICE}/orders`)));
   });
 
   it("blocks other users from reading or writing someone else's orders", async () => {
-    await seedOrder(ALICE, "o1");
+    await seedOrder(ALICE);
     const bob = db(BOB);
-    await assertFails(getDoc(doc(bob, `users/${ALICE}/orders/o1`)));
+    await assertFails(getDoc(doc(bob, orderPath(ALICE))));
     await assertFails(getDocs(collection(bob, `users/${ALICE}/orders`)));
-    await assertFails(setDoc(doc(bob, `users/${ALICE}/orders/o2`), validOrder()));
-    await assertFails(
-      updateDoc(doc(bob, `users/${ALICE}/orders/o1`), { status: "cancelled" }),
-    );
+    await assertFails(setDoc(doc(bob, orderPath(ALICE, REF2)), validOrder({}, REF2)));
+    await assertFails(updateDoc(doc(bob, orderPath(ALICE)), { status: "cancelled" }));
+    await assertFails(updateDoc(doc(bob, orderPath(ALICE)), { status: "processing" }));
   });
 
   it("never allows deleting orders", async () => {
-    await seedOrder(ALICE, "o1");
-    await assertFails(deleteDoc(doc(db(ALICE), `users/${ALICE}/orders/o1`)));
+    await seedOrder(ALICE);
+    await assertFails(deleteDoc(doc(db(ALICE), orderPath(ALICE))));
+  });
+});
+
+describe("orders: one order per Paystack reference", () => {
+  it("rejects a second create for the same reference (duplicate callback)", async () => {
+    const ref = doc(db(ALICE), orderPath(ALICE));
+    await assertSucceeds(setDoc(ref, validOrder()));
+    // Writing the same document again is an update that changes createdAt: denied.
+    await assertFails(setDoc(ref, validOrder()));
+  });
+
+  it("requires the document id to equal the paystackReference field", async () => {
+    await assertFails(
+      setDoc(doc(db(ALICE), orderPath(ALICE, REF2)), validOrder({}, REF)),
+    );
+  });
+
+  it.each([
+    ["an uppercase reference", "kc-0123456789ABCDEF0123456789ABCDEF"],
+    ["a short reference", "kc-0123"],
+    ["a reference without the prefix", "0123456789abcdef0123456789abcdef"],
+    ["a reference with extra characters", `${REF}.x`],
+  ])("rejects %s", async (_label, reference) => {
+    await assertFails(
+      setDoc(doc(db(ALICE), orderPath(ALICE, reference)), validOrder({}, reference)),
+    );
   });
 });
 
 describe("orders: create validation", () => {
-  const create = (data: Record<string, unknown>, id = "o1") =>
-    setDoc(doc(db(ALICE), `users/${ALICE}/orders/${id}`), data);
-
-  it("accepts processing as an initial status", async () => {
-    await assertSucceeds(create(validOrder({ status: "processing" })));
-  });
+  const create = (data: Record<string, unknown>) =>
+    setDoc(doc(db(ALICE), orderPath(ALICE)), data);
 
   it.each([
     ["an unknown top-level field", { discount: 100 }],
+    ["a leftover Stripe field", { stripeSessionId: "cs_test_a1B2c3" }],
+    ["processing as the initial status", { status: "processing" }],
     ["a fulfilment status", { status: "shipped" }],
     ["an invalid status", { status: "refunded" }],
-    ["a reference with forbidden characters", { paystackReference: "kc_<script>" }],
-    ["an over-long reference", { paystackReference: "k".repeat(101) }],
-    ["a numeric reference", { paystackReference: 12345 }],
-    ["a leftover Stripe field", { stripeSessionId: "cs_test_a1B2c3" }],
+    ["another currency", { currency: "USD" }],
     ["a client timestamp", { createdAt: Timestamp.fromDate(new Date("2020-01-01")) }],
     ["an invalid email", { customerEmail: "not-an-email" }],
     ["a too-long email", { customerEmail: `${"a".repeat(250)}@example.com` }],
@@ -179,8 +213,36 @@ describe("orders: create validation", () => {
       "an extra amount field",
       { amounts: { subtotal: 1, shipping: 0, tax: 0, total: 1, x: 0 } },
     ],
+    ["missing customer details", { customer: null }],
+    [
+      "an extra customer field",
+      {
+        customer: {
+          fullName: "Jamie",
+          phone: "08030000000",
+          address: "1 Example Close",
+          isAdmin: true,
+        },
+      },
+    ],
+    [
+      "a malformed phone number",
+      { customer: { fullName: "Jamie", phone: "call me", address: "1 Example Close" } },
+    ],
+    [
+      "an over-long address",
+      { customer: { fullName: "Jamie", phone: "08030000000", address: "a".repeat(301) } },
+    ],
   ])("rejects %s", async (_label, overrides) => {
     await assertFails(create(validOrder(overrides)));
+  });
+
+  it("rejects missing required fields", async () => {
+    for (const field of ["customerEmail", "currency", "customer", "paystackReference"]) {
+      const order: Record<string, unknown> = validOrder();
+      delete order[field];
+      await assertFails(create(order));
+    }
   });
 
   it.each([
@@ -209,7 +271,7 @@ describe("orders: create validation", () => {
   });
 
   it("accepts a worst-case 6-line order within the rules expression limit", async () => {
-    // Longest allowed values on every line: guards against Firestore's 1000-expression cap.
+    // Longest allowed values everywhere: guards against Firestore's 1000-expression cap.
     const items = Array.from({ length: 6 }, (_, i) => ({
       productId: `prd_${"x".repeat(58)}_${i}`,
       name: "n".repeat(120),
@@ -221,48 +283,65 @@ describe("orders: create validation", () => {
       create(
         validOrder({
           items,
-          // 6 × 10 × ₦1,000,000 (the per-unit cap) = ₦60,000,000 would exceed the order cap,
-          // so the amounts here sit at the cap; the item values are what stress the rules.
           amounts: { subtotal: 1_000_000_000, shipping: 0, tax: 0, total: 1_000_000_000 },
+          customerEmail: `${"a".repeat(240)}@example.com`,
+          customer: {
+            fullName: "n".repeat(80),
+            phone: "+2348030000000",
+            address: "a".repeat(300),
+          },
         }),
       ),
     );
   });
-
-  it("rejects missing required fields", async () => {
-    const withoutEmail: Record<string, unknown> = validOrder();
-    delete withoutEmail.customerEmail;
-    await assertFails(create(withoutEmail));
-  });
-
-  it("rejects overly long order ids", async () => {
-    await assertFails(create(validOrder(), "x".repeat(65)));
-  });
 });
 
-describe("orders: updates", () => {
-  it("lets the owner cancel a paid order", async () => {
-    await seedOrder(ALICE, "o1");
-    await assertSucceeds(
-      updateDoc(doc(db(ALICE), `users/${ALICE}/orders/o1`), { status: "cancelled" }),
-    );
+describe("orders: status transitions", () => {
+  const allowed = new Set([
+    "paid->processing",
+    "paid->cancelled",
+    "processing->shipped",
+    "processing->cancelled",
+    "shipped->delivered",
+  ]);
+  const cases = STATUSES.flatMap((from) =>
+    STATUSES.filter((to) => to !== from).map((to) => [from, to] as const),
+  );
+
+  it.each(cases)("%s -> %s follows the lifecycle", async (from, to) => {
+    await seedOrder(ALICE, REF, { status: from });
+    const update = updateDoc(doc(db(ALICE), orderPath(ALICE)), { status: to });
+    if (allowed.has(`${from}->${to}`)) await assertSucceeds(update);
+    else await assertFails(update);
   });
 
-  it("does not let the owner mark an order shipped or edit amounts", async () => {
-    await seedOrder(ALICE, "o1");
-    const ref = doc(db(ALICE), `users/${ALICE}/orders/o1`);
-    await assertFails(updateDoc(ref, { status: "shipped" }));
+  it("walks the full demo lifecycle paid → processing → shipped → delivered", async () => {
+    await seedOrder(ALICE);
+    const ref = doc(db(ALICE), orderPath(ALICE));
+    for (const status of ["processing", "shipped", "delivered"]) {
+      await assertSucceeds(updateDoc(ref, { status }));
+    }
+    await assertFails(updateDoc(ref, { status: "cancelled" }));
+  });
+
+  it("does not allow other fields to change alongside the status", async () => {
+    await seedOrder(ALICE);
+    const ref = doc(db(ALICE), orderPath(ALICE));
     await assertFails(updateDoc(ref, { "amounts.total": 1 }));
     await assertFails(
       updateDoc(ref, { status: "cancelled", customerEmail: "x@example.com" }),
     );
+    await assertFails(
+      updateDoc(ref, { status: "processing", "customer.address": "Elsewhere" }),
+    );
+    await assertFails(updateDoc(ref, { refundedAt: serverTimestamp() }));
   });
 
-  it("does not let a shipped order be cancelled", async () => {
-    await seedOrder(ALICE, "o1", { status: "shipped" });
-    await assertFails(
-      updateDoc(doc(db(ALICE), `users/${ALICE}/orders/o1`), { status: "cancelled" }),
-    );
+  it("rejects unknown statuses and no-op writes", async () => {
+    await seedOrder(ALICE);
+    const ref = doc(db(ALICE), orderPath(ALICE));
+    await assertFails(updateDoc(ref, { status: "refunded" }));
+    await assertFails(updateDoc(ref, { status: "paid" }));
   });
 });
 

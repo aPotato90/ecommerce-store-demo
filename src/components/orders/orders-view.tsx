@@ -5,19 +5,13 @@ import { PackageIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useAuth } from "@/components/auth/auth-provider";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Order } from "@/lib/firebase/orders";
 import { formatPrice, pluralize } from "@/lib/format";
+import { shortReference } from "@/lib/orders/format";
 
-const STATUS_LABELS: Record<Order["status"], string> = {
-  paid: "Paid",
-  processing: "Processing",
-  shipped: "Shipped",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-};
+import { StatusBadge } from "./status-badge";
 
 const dateFormat = new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" });
 
@@ -100,23 +94,27 @@ export function OrdersView() {
   return (
     <ul className="space-y-4">
       {state.orders.map((order) => (
-        <li key={order.id} className="rounded-xl border bg-card p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-sans text-base font-semibold">
-              Order <span className="font-mono text-sm">{order.id.slice(0, 8)}</span>
-            </h2>
-            <Badge variant={order.status === "cancelled" ? "secondary" : "default"}>
-              {STATUS_LABELS[order.status]}
-            </Badge>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {dateFormat.format(order.createdAt.toDate())} ·{" "}
-            {pluralize(
-              order.items.reduce((sum, item) => sum + item.quantity, 0),
-              "item",
-            )}{" "}
-            · {formatPrice(order.amounts.total)}
-          </p>
+        <li key={order.id}>
+          <Link
+            href={`/orders/${order.id}`}
+            className="block rounded-xl border bg-card p-4 transition-shadow hover:shadow-md"
+          >
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-semibold">
+                Order{" "}
+                <span className="font-mono text-sm">{shortReference(order.id)}</span>
+              </span>
+              <StatusBadge status={order.status} />
+            </span>
+            <span className="mt-1 block text-sm text-muted-foreground">
+              {dateFormat.format(order.createdAt.toDate())} ·{" "}
+              {pluralize(
+                order.items.reduce((sum, item) => sum + item.quantity, 0),
+                "item",
+              )}{" "}
+              · {formatPrice(order.amounts.total)}
+            </span>
+          </Link>
         </li>
       ))}
     </ul>

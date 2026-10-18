@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "test:rules": "firebase emulators:exec --only firestore --project demo-kestrel \"vitest run --config vitest.rules.config.mts\"",
     "emulators": "firebase emulators:start --only auth,firestore --project demo-kestrel",
-    "test:e2e": "node scripts/e2e.mjs"
+    "test:e2e": "node scripts/e2e.mjs",
+    "test:e2e:checkout": "firebase emulators:exec --only auth,firestore --project demo-kestrel \"node scripts/e2e-checkout.mjs\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",

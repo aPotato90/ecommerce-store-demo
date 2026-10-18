@@ -56,6 +56,15 @@ export function MobileNav() {
             ))}
             <li>
               <Link
+                href="/orders"
+                onClick={close}
+                className="flex rounded-md px-3 py-3 text-base font-medium hover:bg-muted"
+              >
+                Your orders
+              </Link>
+            </li>
+            <li>
+              <Link
                 href="/cart"
                 onClick={close}
                 className="flex rounded-md px-3 py-3 text-base font-medium hover:bg-muted"

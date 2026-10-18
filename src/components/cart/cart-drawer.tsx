@@ -67,8 +67,13 @@ export function CartDrawer() {
             <SheetFooter className="gap-3 border-t">
               <CartSummary totals={totals} />
               <Button asChild size="lg" className="h-11 w-full text-base">
+                <Link href="/checkout" onClick={close}>
+                  Checkout
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="h-10 w-full">
                 <Link href="/cart" onClick={close}>
-                  View cart and checkout
+                  View cart
                 </Link>
               </Button>
               <p className="text-center text-xs text-muted-foreground">
