@@ -121,13 +121,19 @@ export async function startCheckout(
   };
 
   const reference = (deps.generateReference ?? defaultGenerateReference)();
+  const callbackUrl = `${siteUrl}/checkout/callback`;
   const result = await deps.paystack.initialize({
     email: customer.email,
     amount: priced.amounts.total,
     currency: "NGN",
     reference,
-    callback_url: `${siteUrl}/checkout/callback`,
-    metadata,
+    callback_url: callbackUrl,
+    metadata: {
+      ...metadata,
+      // Where Paystack's hosted page sends a visitor who cancels. Our callback re-verifies
+      // with Paystack (the URL itself is never trusted) and shows "Payment not completed".
+      cancel_action: `${callbackUrl}?reference=${reference}`,
+    },
   });
 
   if (!result.ok) {
@@ -198,7 +204,7 @@ export function evaluateTransaction(
         ok: false,
         code: "payment_pending",
         message:
-          "Paystack hasn't confirmed this payment yet. Please check again in a moment.",
+          "Paystack hasn't confirmed a payment for this order. If you closed or cancelled the payment page, you haven't been charged.",
       };
   }
 

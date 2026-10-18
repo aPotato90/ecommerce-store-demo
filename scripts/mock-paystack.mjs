@@ -113,15 +113,30 @@ export function startMockPaystack(port = 4010) {
       const links = ["success", "abandoned", "failed", "tamper", "usd", "garbage"]
         .map((o) => `<li><a href="/pay/${tx.reference}/${o}">Mock outcome: ${o}</a></li>`)
         .join("");
+      const cancel = `<p><a href="/pay/${tx.reference}/cancel">Cancel payment</a></p>`;
       return send(
         res,
         200,
-        `<!doctype html><html lang="en"><title>Mock Paystack</title><main><h1>Mock Paystack checkout</h1><p>Amount: ${tx.amount} kobo ${tx.currency}</p><ul>${links}</ul></main></html>`,
+        `<!doctype html><html lang="en"><title>Mock Paystack</title><main><h1>Mock Paystack checkout</h1><p>Amount: ${tx.amount} kobo ${tx.currency}</p><ul>${links}</ul>${cancel}</main></html>`,
       );
     }
     if (req.method === "GET" && parts[0] === "pay" && parts.length === 3) {
       const tx = transactions.get(parts[1]);
       if (!tx) return send(res, 404, "<p>Unknown transaction</p>");
+      // "Cancel payment": the transaction is abandoned and the visitor goes to the
+      // metadata cancel_action URL if one was given (it must be on the callback's origin),
+      // otherwise to the callback URL.
+      if (parts[2] === "cancel") {
+        tx.outcome = "abandoned";
+        const target = tx.metadata?.cancel_action;
+        const sameOrigin =
+          typeof target === "string" &&
+          new URL(target).origin === new URL(tx.callbackUrl).origin;
+        const location = sameOrigin
+          ? target
+          : `${tx.callbackUrl}?trxref=${tx.reference}&reference=${tx.reference}`;
+        return send(res, 302, "", { Location: location });
+      }
       tx.outcome = parts[2];
       const callback = new URL(tx.callbackUrl);
       callback.searchParams.set("trxref", tx.reference);

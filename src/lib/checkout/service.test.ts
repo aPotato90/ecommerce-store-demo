@@ -91,7 +91,10 @@ describe("startCheckout", () => {
       currency: "NGN",
       reference: REF,
       callback_url: "https://shop.example.com/checkout/callback",
-      metadata,
+      metadata: {
+        ...metadata,
+        cancel_action: `https://shop.example.com/checkout/callback?reference=${REF}`,
+      },
     });
   });
 
@@ -242,6 +245,11 @@ describe("evaluateTransaction (amount verification)", () => {
         ],
       },
     });
+  });
+
+  it("ignores extra metadata keys such as cancel_action", () => {
+    const withCancel = { ...metadata, cancel_action: "https://shop.example.com/x" };
+    expect(evaluateTransaction(REF, transaction({ metadata: withCancel })).ok).toBe(true);
   });
 
   it("accepts metadata returned as a JSON string", () => {

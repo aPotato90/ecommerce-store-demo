@@ -141,7 +141,15 @@ NEXT_PUBLIC_FIREBASE_USE_EMULATORS=true npm run dev # in a second terminal
    Nigerian-format mobile number such as `0803 000 0000`, and any address. Then click
    **Pay with Paystack (test mode)**.
 4. On Paystack's test checkout page, pay with one of Paystack's **test cards** (see below).
-   You can also close the page or cancel to see the "payment not completed" path.
+   You can also cancel there, or press the browser's **Back** button, to see what happens
+   when you return without paying:
+   - **Cancel** sends you to `/checkout/callback`. The checkout asks Paystack to do this
+     through `metadata.cancel_action`. The server still verifies the reference with Paystack
+     and shows **Payment not completed** with **Try again**. No order is saved.
+   - **Back** returns you to `/checkout` with a usable button. Your cart and form details are
+     still there, even if the browser restores the page from its back/forward cache with the
+     "Redirecting…" state frozen. The page also resets itself if the redirect hasn't left
+     after 15 seconds, and then shows "Couldn't open Paystack. Please try again."
 5. Paystack sends you back to `/checkout/callback`. The server verifies the payment and the
    order is saved, then `/orders/[id]` opens. Try **Advance status** and **Cancel order**.
    Refreshing the callback page shows "already saved" instead of creating a duplicate.
@@ -220,7 +228,12 @@ npm run test:e2e                  # in another (BASE_URL defaults to http://loca
 mock of Paystack** (`scripts/mock-paystack.mjs`), so it never calls the real Paystack API or
 attempts a real payment. It covers form validation, success, abandoned, failed, tampered
 amount, wrong currency, gateway errors with retry, duplicate callbacks, cancel and advance
-status. It also runs axe-core on the new pages at 375, 768 and 1280 px in both themes:
+status. It also covers returning from Paystack without paying: a real **Back** navigation
+that Chromium restores from the back/forward cache (Playwright disables that cache by
+default, so this check launches Chromium without `--disable-back-forward-cache`), a
+simulated `pageshow` restore, the tab becoming visible again, the 15-second timeout,
+**Cancel** on the Paystack page, and a return while the payment is still open. It also runs
+axe-core on the new pages at 375, 768 and 1280 px in both themes:
 
 ```bash
 NEXT_PUBLIC_FIREBASE_USE_EMULATORS=true NEXT_PUBLIC_SITE_URL=http://localhost:3100 npm run build

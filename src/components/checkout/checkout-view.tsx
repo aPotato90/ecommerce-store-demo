@@ -2,7 +2,13 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { Loader2Icon, LockIcon, ShoppingBagIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  InfoIcon,
+  Loader2Icon,
+  LockIcon,
+  ShoppingBagIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 
@@ -13,6 +19,8 @@ import { CartSummary } from "@/components/cart/cart-summary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { readCheckoutDraft, writeCheckoutDraft } from "@/lib/checkout/draft";
+import { watchRedirect } from "@/lib/checkout/redirect-guard";
 import {
   customerSchema,
   NIGERIAN_STATES,
@@ -44,6 +52,7 @@ export function CheckoutView() {
   const [isPending, startTransition] = useTransition();
   const [redirecting, setRedirecting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [returnNotice, setReturnNotice] = useState<string | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
 
   // Checkout is one of the places an identity is needed: sign in anonymously now, so the
@@ -63,8 +72,39 @@ export function CheckoutView() {
     if (formError) errorRef.current?.focus();
   }, [formError]);
 
+  // Keep the visitor's (fake) details for this tab, so they survive a trip to Paystack and
+  // back even when the browser reloads the page instead of restoring it from bfcache.
+  useEffect(() => {
+    const draft = readCheckoutDraft();
+    if (draft) form.reset({ ...EMPTY_CUSTOMER, ...draft }, { keepDefaultValues: true });
+    return form.subscribe({
+      formState: { values: true },
+      callback: ({ values }) => writeCheckoutDraft(values),
+    });
+  }, [form]);
+
+  // While redirecting to Paystack, make sure the button can't stay stuck on the spinner: the
+  // page may come back from the back/forward cache with this state frozen, the tab may be
+  // shown again without the redirect having happened, or the redirect may never start.
+  useEffect(() => {
+    if (!redirecting) return;
+    return watchRedirect({
+      onReset: (reason) => {
+        setRedirecting(false);
+        if (reason === "timeout") {
+          setFormError("Couldn't open Paystack. Please try again.");
+        } else if (reason === "restored") {
+          setReturnNotice(
+            "You came back before finishing the payment, so nothing was charged. Your cart and details are still here when you're ready.",
+          );
+        }
+      },
+    });
+  }, [redirecting]);
+
   const onSubmit = form.handleSubmit((customer) => {
     setFormError(null);
+    setReturnNotice(null);
     startTransition(async () => {
       const result = await initializeCheckout({
         // Only ids, variants and quantities: the server prices everything itself.
@@ -136,6 +176,19 @@ export function CheckoutView() {
           <code>example.com</code> email and a made-up address are perfect). They&apos;re
           only used to show how a real checkout works.
         </p>
+
+        {returnNotice && (
+          <div
+            role="status"
+            className="flex gap-3 rounded-xl border bg-muted/40 p-4 text-sm"
+          >
+            <InfoIcon aria-hidden="true" className="size-5 shrink-0 text-primary" />
+            <div className="space-y-1">
+              <p className="font-semibold">Payment not completed</p>
+              <p>{returnNotice}</p>
+            </div>
+          </div>
+        )}
 
         {formError && (
           <div
