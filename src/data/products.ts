@@ -122,7 +122,7 @@ export const products: Product[] = [
     rating: 4.5,
     reviewCount: 61,
     stock: 3,
-    featured: false,
+    featured: true,
     variants: {
       kind: "colour",
       options: [
@@ -420,7 +420,7 @@ export const products: Product[] = [
     rating: 4.6,
     reviewCount: 118,
     stock: 7,
-    featured: false,
+    featured: true,
     variants: {
       kind: "colour",
       options: [
