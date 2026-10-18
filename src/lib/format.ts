@@ -1,8 +1,8 @@
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const currency = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" });
 
-/** Formats integer cents as US dollars, e.g. 4200 -> "$42.00". */
-export function formatPrice(cents: number): string {
-  return currency.format(cents / 100);
+/** Formats integer kobo as Nigerian naira, e.g. 1_850_000 -> "₦18,500.00". */
+export function formatPrice(kobo: number): string {
+  return currency.format(kobo / 100);
 }
 
 export function pluralize(count: number, singular: string, plural = `${singular}s`) {

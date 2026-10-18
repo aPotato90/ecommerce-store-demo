@@ -24,7 +24,7 @@ export function CartSummary({
         </dd>
       </div>
       <div className="flex justify-between">
-        <dt className="text-muted-foreground">Tax (7.5%)</dt>
+        <dt className="text-muted-foreground">VAT (7.5%)</dt>
         <dd className="tabular-nums">{formatPrice(totals.tax)}</dd>
       </div>
       <div className="flex justify-between border-t pt-2 text-base font-semibold">

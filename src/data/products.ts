@@ -2,7 +2,8 @@ import type { Product } from "@/lib/shop/types";
 
 /**
  * The server-side source of truth for the (entirely fictional) Kestrel & Co. catalogue.
- * Prices are in cents. Product visuals are generated in code by `ProductImage`.
+ * Prices are integers in kobo (₦1 = 100 kobo), e.g. 1_850_000 = ₦18,500. Product visuals
+ * are generated in code by `ProductImage`.
  */
 export const products: Product[] = [
   // --- Home -------------------------------------------------------------------------
@@ -18,7 +19,7 @@ export const products: Product[] = [
       "24 cm tall, 11 cm at the widest point",
       "Each piece varies slightly in tone",
     ],
-    price: 4200,
+    price: 1_850_000,
     category: "home",
     tags: ["ceramic", "decor", "handmade"],
     rating: 4.8,
@@ -48,7 +49,7 @@ export const products: Product[] = [
     description:
       "A generous throw woven from heavyweight linen and stone-washed for a lived-in drape from day one. Fringed ends, a relaxed hand and enough size to cover a three-seater or the foot of a queen bed.",
     details: ["100% linen, 380 gsm", "130 × 180 cm", "Machine wash cool, tumble dry low"],
-    price: 8900,
+    price: 4_500_000,
     category: "home",
     tags: ["linen", "textiles", "bedroom"],
     rating: 4.6,
@@ -82,7 +83,7 @@ export const products: Product[] = [
       "Burn time: 25 / 45 / 70 hours",
       "Trim the wick to 5 mm before each burn",
     ],
-    price: 2400,
+    price: 950_000,
     category: "home",
     tags: ["candle", "fragrance", "gift"],
     rating: 4.7,
@@ -116,7 +117,7 @@ export const products: Product[] = [
       "E14 bulb, 2700 K LED included",
       "38 cm tall, 2 m fabric cable",
     ],
-    price: 12800,
+    price: 6_800_000,
     category: "home",
     tags: ["lighting", "lamp", "bedroom"],
     rating: 4.5,
@@ -152,7 +153,7 @@ export const products: Product[] = [
       "Makes 1–4 cups (up to 600 ml)",
       "Includes 40 unbleached paper filters",
     ],
-    price: 5600,
+    price: 3_200_000,
     category: "kitchen",
     tags: ["coffee", "glass", "brewing"],
     rating: 4.9,
@@ -178,7 +179,7 @@ export const products: Product[] = [
       "Dishwasher and microwave safe",
       "Lead-free glaze",
     ],
-    price: 3800,
+    price: 1_650_000,
     category: "kitchen",
     tags: ["ceramic", "coffee", "tea"],
     rating: 4.7,
@@ -212,7 +213,7 @@ export const products: Product[] = [
       "Juice groove and recessed handles",
       "Hand wash, re-oil monthly",
     ],
-    price: 7400,
+    price: 3_850_000,
     category: "kitchen",
     tags: ["wood", "prep", "serving"],
     rating: 4.8,
@@ -246,7 +247,7 @@ export const products: Product[] = [
       "1.5 litre capacity",
       "Induction compatible",
     ],
-    price: 6900,
+    price: 4_200_000,
     category: "kitchen",
     tags: ["tea", "coffee", "stovetop"],
     rating: 4.4,
@@ -270,7 +271,7 @@ export const products: Product[] = [
     description:
       "Three stitched pocket notebooks with sturdy card covers and 48 pages of smooth, fountain-pen-friendly paper. Dot grid on every page, rounded corners and an elastic-free design that sits flat when open.",
     details: ["Set of 3, A6 (105 × 148 mm)", "48 pages, 100 gsm paper", "5 mm dot grid"],
-    price: 1800,
+    price: 500_000,
     category: "desk",
     tags: ["paper", "stationery", "gift"],
     rating: 4.6,
@@ -300,7 +301,7 @@ export const products: Product[] = [
     description:
       "A solid walnut shelf on powder-coated steel legs that lifts your monitor by 10 cm and creates a tidy tuck-away space for a keyboard, notebooks or a laptop underneath.",
     details: ["Solid walnut, steel legs", "60 × 22 × 10 cm", "Holds up to 20 kg"],
-    price: 11500,
+    price: 12_000_000,
     category: "desk",
     tags: ["wood", "ergonomics", "organisation"],
     rating: 4.7,
@@ -322,7 +323,7 @@ export const products: Product[] = [
     description:
       "Pressed from thick merino wool felt with a cork underside that grips the desk. It softens the sound of typing, protects the surface and gives your mouse a smooth, consistent glide.",
     details: ["Merino wool felt, natural cork base", "4 mm thick", "Spot clean only"],
-    price: 4900,
+    price: 2_400_000,
     category: "desk",
     tags: ["wool", "organisation", "workspace"],
     rating: 4.5,
@@ -356,7 +357,7 @@ export const products: Product[] = [
       "Silent sweep quartz movement",
       "Runs on 1 × AA battery",
     ],
-    price: 3600,
+    price: 1_950_000,
     category: "desk",
     tags: ["clock", "wood", "workspace"],
     rating: 4.3,
@@ -384,7 +385,7 @@ export const products: Product[] = [
       "18/8 stainless steel",
       "BPA-free cap",
     ],
-    price: 3200,
+    price: 1_450_000,
     category: "outdoor",
     tags: ["hydration", "travel", "steel"],
     rating: 4.8,
@@ -414,7 +415,7 @@ export const products: Product[] = [
     description:
       "Cut from waxed cotton canvas with leather-free webbing straps, this daypack has a padded laptop sleeve, a quick-access front pocket and a roll-top that expands when you need a little more room.",
     details: ["Waxed cotton canvas", "20 litres, fits a 15-inch laptop", "Re-wax yearly"],
-    price: 9800,
+    price: 5_600_000,
     category: "outdoor",
     tags: ["bag", "travel", "canvas"],
     rating: 4.6,
@@ -448,7 +449,7 @@ export const products: Product[] = [
       "Up to 40 hours on low",
       "USB-C charging, IPX4",
     ],
-    price: 5400,
+    price: 2_750_000,
     category: "outdoor",
     tags: ["lighting", "camping", "rechargeable"],
     rating: 4.5,
@@ -482,7 +483,7 @@ export const products: Product[] = [
       "Seat height 45 cm",
       "Holds up to 110 kg, weighs 1.2 kg",
     ],
-    price: 4600,
+    price: 2_200_000,
     category: "outdoor",
     tags: ["camping", "wood", "seating"],
     rating: 4.2,

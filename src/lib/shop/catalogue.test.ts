@@ -41,6 +41,14 @@ describe("catalogue data", () => {
     }
   });
 
+  it("prices everything in kobo between ₦5,000 and ₦120,000", () => {
+    for (const product of products) {
+      expect(Number.isInteger(product.price)).toBe(true);
+      expect(product.price).toBeGreaterThanOrEqual(500_000);
+      expect(product.price).toBeLessThanOrEqual(12_000_000);
+    }
+  });
+
   it("uses only fictional branding", () => {
     const text = JSON.stringify(products).toLowerCase();
     expect(text).not.toContain("northwind");
@@ -73,7 +81,7 @@ describe("resolveCartItems", () => {
     const [line] = resolveCartItems([
       { productId: "prd_aster_vase", variantId: "sage", quantity: 2 },
     ]);
-    expect(line.unitPrice).toBe(4200);
+    expect(line.unitPrice).toBe(1_850_000);
     expect(line.variant?.label).toBe("Sage");
     expect(line.quantity).toBe(2);
   });
