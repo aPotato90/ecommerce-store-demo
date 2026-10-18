@@ -9,6 +9,7 @@ import { verifyCheckout } from "@/app/checkout/actions";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useCart } from "@/components/cart/cart-provider";
 import { Button } from "@/components/ui/button";
+import { clearCheckoutDraft } from "@/lib/checkout/draft";
 import type { VerifiedOrder, VerifyFailureCode } from "@/lib/checkout/service";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { formatPrice } from "@/lib/format";
@@ -81,7 +82,12 @@ const RETRYABLE = new Set<string>([
   "save_failed",
   "config_error",
 ]);
-const PAYMENT_NOT_TAKEN = new Set<string>(["payment_abandoned", "payment_failed"]);
+/** Paystack holds no successful payment: nothing was charged and nothing is saved. */
+const PAYMENT_NOT_TAKEN = new Set<string>([
+  "payment_abandoned",
+  "payment_pending",
+  "payment_failed",
+]);
 
 export function CallbackView() {
   const searchParams = useSearchParams();
@@ -110,7 +116,10 @@ export function CallbackView() {
       if (!active) return;
       // Only a fresh save empties the cart: revisiting an old callback link must not wipe a
       // cart the visitor has filled since.
-      if (result.kind === "saved" || result.kind === "verified_not_saved") clearCart();
+      if (result.kind === "saved" || result.kind === "verified_not_saved") {
+        clearCart();
+        clearCheckoutDraft();
+      }
       if (result.kind === "saved") {
         router.replace(`/orders/${result.reference}`);
         return;
@@ -189,9 +198,9 @@ export function CallbackView() {
 
   const notTaken = PAYMENT_NOT_TAKEN.has(current.code);
   const title = notTaken
-    ? current.code === "payment_abandoned"
-      ? "Payment not completed"
-      : "Payment failed"
+    ? current.code === "payment_failed"
+      ? "Payment failed"
+      : "Payment not completed"
     : current.code === "amount_mismatch" ||
         current.code === "currency_mismatch" ||
         current.code === "reference_mismatch" ||
@@ -215,18 +224,26 @@ export function CallbackView() {
         </p>
       )}
       <div className="flex flex-wrap gap-3">
-        {RETRYABLE.has(current.code) && (
-          <Button size="lg" onClick={retry}>
-            <RotateCcwIcon aria-hidden="true" /> Try again
+        {notTaken && (
+          <Button asChild size="lg">
+            <Link href="/checkout">Try again</Link>
           </Button>
         )}
-        <Button
-          asChild
-          size="lg"
-          variant={RETRYABLE.has(current.code) ? "outline" : "default"}
-        >
-          <Link href="/checkout">{notTaken ? "Try again" : "Back to checkout"}</Link>
-        </Button>
+        {RETRYABLE.has(current.code) && (
+          <Button size="lg" variant={notTaken ? "outline" : "default"} onClick={retry}>
+            <RotateCcwIcon aria-hidden="true" />
+            {current.code === "payment_pending" ? "Check payment again" : "Try again"}
+          </Button>
+        )}
+        {!notTaken && (
+          <Button
+            asChild
+            size="lg"
+            variant={RETRYABLE.has(current.code) ? "outline" : "default"}
+          >
+            <Link href="/checkout">Back to checkout</Link>
+          </Button>
+        )}
         <Button asChild size="lg" variant="ghost">
           <Link href="/cart">View cart</Link>
         </Button>
