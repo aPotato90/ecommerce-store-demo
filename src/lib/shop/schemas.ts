@@ -4,8 +4,8 @@ import { CATEGORIES, VISUAL_KINDS } from "./types";
 
 /** Most of any single line a shopper can add, even when stock is higher. */
 export const MAX_QUANTITY_PER_LINE = 10;
-/** Upper bound on distinct cart lines, to keep stored state small. */
-export const MAX_CART_LINES = 50;
+/** Upper bound on distinct cart lines (matches the order item limit in firestore.rules). */
+export const MAX_CART_LINES = 6;
 
 const hexColour = z.string().regex(/^#[0-9a-f]{6}$/i, "Expected a #rrggbb colour");
 const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Expected a kebab-case slug");
