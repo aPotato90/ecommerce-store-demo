@@ -354,6 +354,230 @@ async function flows(browser) {
   return { storageState, orderId: firstReference };
 }
 
+/**
+ * Starts a payment whose redirect never leaves the page: the mock Paystack page answers
+ * 204 No Content, so the browser cancels the navigation and stays on /checkout with the
+ * "Redirecting…" state set, just like a page frozen mid-redirect.
+ */
+async function startHeldRedirect(page) {
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.route(`${MOCK_URL}/pay/**`, (route) => route.fulfill({ status: 204 }));
+  await page.goto(`${BASE_URL}/checkout`, { waitUntil: "load" });
+  await fillCheckoutForm(page);
+  await page.getByRole("button", { name: "Pay with Paystack (test mode)" }).click();
+  await expect
+    .poll(() => checkoutState(page))
+    .toMatchObject({
+      button: "Redirecting to Paystack…",
+      disabled: true,
+    });
+}
+
+/**
+ * Reads the checkout state straight from the DOM. Playwright keeps treating the cancelled
+ * (204) navigation as pending, which stalls its actionability-based assertions, so the
+ * held-redirect checks poll plain DOM reads instead.
+ */
+function checkoutState(page) {
+  return page.evaluate(() => {
+    const button = document.querySelector("form button[type=submit]");
+    const field = (id) => document.getElementById(id)?.value;
+    const cart = document.querySelector('button[aria-label^="Open cart"]');
+    return {
+      button: button?.textContent?.trim(),
+      disabled: button?.disabled,
+      email: field("checkout-email"),
+      state: field("checkout-state"),
+      cartItems: Number(cart?.getAttribute("aria-label")?.match(/(\d+) item/)?.[1] ?? 0),
+      text: document.querySelector("main")?.innerText ?? "",
+    };
+  });
+}
+
+/** The button is usable again, the form kept its values and the cart is untouched. */
+async function expectUsableAndKept(page, { timeout = 5_000 } = {}) {
+  await expect
+    .poll(() => checkoutState(page), { timeout })
+    .toMatchObject({
+      button: "Pay with Paystack (test mode)",
+      disabled: false,
+      email: "jamie@example.com",
+      state: "Lagos",
+      cartItems: 2,
+    });
+}
+
+async function expectText(page, text, timeout = 5_000) {
+  await expect
+    .poll(async () => (await checkoutState(page)).text, { timeout })
+    .toContain(text);
+}
+
+async function returnFlows(browser) {
+  console.log("\nReturning from Paystack without paying (1280px)");
+
+  // Playwright launches Chromium with --disable-back-forward-cache; this browser keeps the
+  // cache on so Back can really restore the page from bfcache.
+  const bfcacheBrowser = await chromium.launch({
+    ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
+    ignoreDefaultArgs: ["--disable-back-forward-cache"],
+  });
+  {
+    const { context, page, errors } = await openPage(bfcacheBrowser, { cart: CART() });
+    await realBackNavigation(context, page);
+    await check("no console errors after Back from Paystack", async () => {
+      if (errors.length) throw new Error(errors.join("\n"));
+    });
+    await context.close();
+  }
+  await bfcacheBrowser.close();
+
+  const { context, page, errors } = await openPage(browser, { cart: CART() });
+
+  await check(
+    "simulated bfcache restore (pageshow persisted) resets the stuck button",
+    async () => {
+      await startHeldRedirect(page);
+      await page.evaluate(() =>
+        window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })),
+      );
+      await expectUsableAndKept(page);
+      await expectText(page, "You came back before finishing the payment");
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+    },
+  );
+
+  await check(
+    "tab visible again with the redirect still pending resets after a few seconds",
+    async () => {
+      await startHeldRedirect(page);
+      await page.evaluate(() => {
+        const set = (state) => {
+          Object.defineProperty(document, "visibilityState", {
+            value: state,
+            configurable: true,
+          });
+          document.dispatchEvent(new Event("visibilitychange"));
+        };
+        set("hidden");
+        set("visible");
+      });
+      // Still redirecting during the grace period, then reset (well before the 15s timeout).
+      expect((await checkoutState(page)).button).toBe("Redirecting to Paystack…");
+      await expectUsableAndKept(page, { timeout: 6_000 });
+      expect((await checkoutState(page)).text).not.toContain("Couldn't open Paystack");
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+    },
+  );
+
+  await check(
+    "a redirect that never leaves the page times out after 15s with a message",
+    async () => {
+      await startHeldRedirect(page);
+      await expectText(page, "Couldn't open Paystack. Please try again.", 20_000);
+      await expectUsableAndKept(page);
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+    },
+  );
+
+  await returnToCallbackFlows(page, errors);
+  await context.close();
+}
+
+async function realBackNavigation(context, page) {
+  await check(
+    "browser Back from Paystack leaves a usable button, the cart and the form",
+    async () => {
+      // Report whether Chromium restored the page from bfcache, and if not, why.
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Page.enable");
+      let notRestored = null;
+      cdp.on("Page.backForwardCacheNotUsed", (event) => {
+        notRestored = event.notRestoredExplanations.map((e) => e.reason).join(", ");
+      });
+      await page.addInitScript(() => {
+        window.addEventListener("pageshow", (event) => {
+          window.__restoredFromBfcache = event.persisted;
+        });
+      });
+
+      await page.goto(`${BASE_URL}/checkout`, { waitUntil: "load" });
+      await fillCheckoutForm(page);
+      await page.getByRole("button", { name: "Pay with Paystack (test mode)" }).click();
+      await page.waitForURL(/127\.0\.0\.1:4010\/pay\//, { timeout: 20_000 });
+      // A page restored from bfcache fires "pageshow", not "load": wait for the commit only.
+      await page.goBack({ waitUntil: "commit" });
+      await page.waitForURL(`${BASE_URL}/checkout`, { waitUntil: "commit" });
+      await expectUsableAndKept(page);
+      const restored = await page.evaluate(() => window.__restoredFromBfcache === true);
+      console.log(
+        restored
+          ? "    (page was restored from the back/forward cache)"
+          : `    (page was reloaded, not restored from bfcache${notRestored ? `: ${notRestored}` : ""})`,
+      );
+      if (restored) await expectText(page, "You came back before finishing the payment");
+      await cdp.detach();
+    },
+  );
+}
+
+async function returnToCallbackFlows(page, errors) {
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await check(
+    "Cancel on Paystack returns to the callback: not completed, nothing saved",
+    async () => {
+      await page.goto(`${BASE_URL}/checkout`, { waitUntil: "load" });
+      await fillCheckoutForm(page);
+      await page.getByRole("button", { name: "Pay with Paystack (test mode)" }).click();
+      await page.waitForURL(/127\.0\.0\.1:4010\/pay\//, { timeout: 20_000 });
+      const reference = page.url().split("/pay/")[1];
+      await page.getByRole("link", { name: "Cancel payment" }).click();
+      await page.waitForURL(`${BASE_URL}/checkout/callback?reference=${reference}`);
+      await expect(
+        page.getByRole("heading", { name: "Payment not completed" }),
+      ).toBeVisible();
+      await expect.poll(() => cartCount(page)).toBe(2);
+      await page.getByRole("link", { name: "Try again" }).click();
+      await page.waitForURL(`${BASE_URL}/checkout`);
+      // The form comes back filled in (kept for this tab) and the cart is untouched.
+      await expectUsableAndKept(page);
+      await page.goto(`${BASE_URL}/orders/${reference}`, { waitUntil: "load" });
+      await expect(page.getByRole("heading", { name: "Order not found" })).toBeVisible();
+    },
+  );
+
+  await check(
+    "returning while Paystack still shows the payment as open: not completed",
+    async () => {
+      await page.goto(`${BASE_URL}/checkout`, { waitUntil: "load" });
+      await page.getByRole("button", { name: "Pay with Paystack (test mode)" }).click();
+      await page.waitForURL(/127\.0\.0\.1:4010\/pay\//, { timeout: 20_000 });
+      const reference = page.url().split("/pay/")[1];
+      // No outcome chosen on Paystack (status "ongoing"), visitor comes back to the callback.
+      await page.goto(`${BASE_URL}/checkout/callback?reference=${reference}`, {
+        waitUntil: "load",
+      });
+      await expect(
+        page.getByRole("heading", { name: "Payment not completed" }),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "Try again" })).toHaveAttribute(
+        "href",
+        "/checkout",
+      );
+      await expect(
+        page.getByRole("button", { name: "Check payment again" }),
+      ).toBeVisible();
+      await page.goto(`${BASE_URL}/orders/${reference}`, { waitUntil: "load" });
+      await expect(page.getByRole("heading", { name: "Order not found" })).toBeVisible();
+    },
+  );
+
+  await check("no console errors while returning from Paystack", async () => {
+    const relevant = errors.filter((e) => !e.includes("net::ERR_ABORTED"));
+    if (relevant.length) throw new Error(relevant.join("\n"));
+  });
+}
+
 async function matrix(browser, { storageState, orderId }) {
   const pages = [
     ["/checkout", "Checkout"],
@@ -421,6 +645,7 @@ try {
     process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
   );
   const state = await flows(browser);
+  await returnFlows(browser);
   await matrix(browser, state);
 } finally {
   await browser?.close();
